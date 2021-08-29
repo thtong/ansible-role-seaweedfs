@@ -22,6 +22,15 @@
     system: true
     create_home: false
 
+- name: create directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ weed.user.name }}"
+    group: "{{ weed.user.name }}"
+  loop: "{{ ','.join((weed.master.dir, weed.volume.dir, weed.filer.dir)) | split(',') }}"
+
 - name: Download seaweed archive
   unarchive:
     src: "{{ download_url }}"
@@ -129,4 +138,3 @@
         timeout: 30
 
 - meta: flush_handlers
-...

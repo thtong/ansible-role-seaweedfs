@@ -1,5 +1,5 @@
 ---
 - hosts: seaweedfs
-  remote_user: root
+  become: yes
   roles:
     - bmillemathias.seaweedfs
