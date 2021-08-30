@@ -1,10 +1,34 @@
 ---
-- name: "check the release {{ weed.version }} exists on GitHub"
+- name: "Get the {{ weed.version }} release details"
   uri:
-    url: "https://api.github.com/repos/chrislusf/seaweedfs/releases/tags/{{ weed.version }}"
-  run_once: true
+    url: "https://api.github.com/repos/chrislusf/seaweedfs/releases/{{ (weed.version == 'latest') | ternary('latest', 'tags/' + weed.version) }}"
+    return_content: true
   delegate_to: localhost
-  check_mode: false
+  run_once: yes
+  register: seaweedfs_release
+
+- name: set weed version when latest
+  set_fact:
+    weed: "{{ weed | combine({'version': seaweedfs_release.json.tag_name }) }}"
+  when: seaweedfs_release is succeeded and weed.version == 'latest'
+
+- name: set seaweedfs_download_info
+  block:
+    - set_fact:
+        download_url: "{{ seaweedfs_release.json.assets | selectattr('browser_download_url', 'match', '.*' + the_download_filename + '$' ) | map(attribute='browser_download_url') | first }}"
+      vars:
+        the_download_filename: "{{ ansible_system|lower }}_{{ arch[ansible_architecture] }}{% if weed.large_disk %}_large_disk{% endif %}.tar.gz"
+  rescue:
+    - set_fact:
+        download_url: "{{ seaweedfs_release.json.assets | selectattr('browser_download_url', 'match', '.*' + the_download_filename + '$' ) | map(attribute='browser_download_url') | first }}"
+      vars:
+        the_download_filename: "{{ ansible_system|lower }}_{{ arch[ansible_architecture] }}.tar.gz"
+  when: seaweedfs_release is succeeded
+
+- name: debug
+  debug:
+    msg: "{{ download_url }}"
+    verbosity: 1
 
 - name: ensure tools are installed
   package:
@@ -26,7 +50,7 @@
   file:
     path: "{{ item }}"
     state: directory
-    mode: "0755"
+    mode: "0700"
     owner: "{{ weed.user.name }}"
     group: "{{ weed.user.name }}"
   loop: "{{ ','.join((weed.master.dir, weed.volume.dir, weed.filer.dir)) | split(',') }}"
